@@ -16,11 +16,13 @@ target("vxcore")
     set_kind("static")
     add_files("src/vxcore/**.cpp")
 
+target("vxmodel")
+    set_kind("static")
+    add_deps("vxcore")
+    add_files("src/vxmodel/**.cpp")
+
 -- TBD
 
--- target("vxmodel")
---     set_kind("static")
---     add_files("src/vxmodel/**.cpp")
 
 -- target("vxlayout")
 --     set_kind("static")
@@ -34,12 +36,12 @@ target("vxcore")
 
 target("vitexxe")
     set_kind("binary")
-    add_deps("vxcore")
+    add_deps("vxcore", "vxmodel")
     add_packages("raylib")
     add_files("src/vitexxe/**.cpp")
 
 target("vitexxe-tests")
     set_kind("binary")
-    add_deps("vxcore") -- should be the same as vitexxe deps above
+    add_deps("vxcore", "vxmodel") -- should be the same as vitexxe deps above
     add_packages("catch2")
     add_files("tests/**.cpp")
