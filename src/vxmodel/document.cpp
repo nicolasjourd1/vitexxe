@@ -2,6 +2,7 @@
 #include "vxcore/diagnostics.hpp"
 #include "vxcore/utf8.hpp"
 #include "vxmodel/ast.hpp"
+#include "vxmodel/math_input.hpp"
 
 namespace vx::model
 {
@@ -71,6 +72,85 @@ void document::insert_text(cursor_pos &cursor, std::string_view text)
             }
         },
         current_block);
+}
+
+bool document::handle_tabulation(cursor_pos &cursor, const math_input_handler &handler)
+{
+    if (m_blocks.empty() || cursor.block_idx >= m_blocks.size())
+        return false;
+
+    bool replaced = false;
+    block_node &current_block = get_mutable_block(cursor.block_idx);
+
+    std::visit(
+        [&](auto &block) {
+            using T = std::decay_t<decltype(block)>;
+            std::string *content_ptr = nullptr;
+
+            if constexpr (std::is_same_v<T, paragraph_block> || std::is_same_v<T, heading_block>)
+            {
+                if (cursor.inline_idx < block.children.size())
+                {
+                    auto &current_inline = block.children[cursor.inline_idx];
+
+                    if (auto *math = std::get_if<math_inline>(&current_inline))
+                    {
+                        content_ptr = &math->content;
+                    }
+                    // NOTE: if tabulation cycles are added to text later
+                    // else if (auto *txt = std::get_if<text_inline>(&current_inline))
+                    // {
+                    //     content_ptr = &txt->content;
+                    // }
+                }
+            }
+            else if constexpr (std::is_same_v<T, math_display_block>)
+            {
+                content_ptr = &block.content;
+            }
+
+            if (!content_ptr || content_ptr->empty())
+                return;
+
+            std::string &content = *content_ptr;
+
+            // search for previous delimitiers
+            usize slash_pos = content.rfind('\\');
+            usize space_pos = content.rfind(' ');
+
+            std::string symbol_to_check;
+            usize replace_start = 0;
+
+            if (slash_pos != std::string::npos &&
+                (space_pos == std::string::npos || slash_pos > space_pos))
+            {
+                // i.e \foo
+                replace_start = slash_pos;
+                symbol_to_check = content.substr(replace_start);
+            }
+            else
+            {
+                // a char
+                replace_start = content.length() - 1;
+                symbol_to_check = content.substr(replace_start);
+            }
+
+            auto next_sym = handler.get_next_tab_cycle(symbol_to_check);
+            if (next_sym)
+            {
+                auto old_utf32 = vx::utf8_to_utf32(symbol_to_check);
+                auto new_utf32 = vx::utf8_to_utf32(*next_sym);
+
+                content.replace(replace_start, std::string::npos, *next_sym);
+
+                cursor.offset_chars -= old_utf32.size();
+                cursor.offset_chars += new_utf32.size();
+                replaced = true;
+            }
+        },
+        current_block);
+
+    return replaced;
 }
 
 } // namespace vx::model

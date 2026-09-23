@@ -1,5 +1,6 @@
 #include "vxmodel/ast.hpp"
 #include "vxmodel/document.hpp"
+#include "vxmodel/math_input.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <variant>
 
@@ -34,5 +35,37 @@ TEST_CASE("Document insertion", "[model][document]")
         REQUIRE(std::holds_alternative<vx::model::paragraph_block>(doc.get_blocks()[0]));
 
         CHECK(cursor.offset_chars == 7);
+    }
+}
+
+TEST_CASE("Document math tabulation", "[model][document]")
+{
+    SECTION("Tabulation cycles updates AST and cursor")
+    {
+        vx::model::document doc;
+        vx::model::cursor_pos cursor{.block_idx = 0, .inline_idx = 0, .offset_chars = 0};
+        vx::model::math_input_handler math_handler;
+
+        vx::model::math_display_block math_block;
+        doc.append_block(math_block);
+
+        doc.insert_text(cursor, "a");
+        CHECK(cursor.offset_chars == 1);
+
+        bool tab1 = doc.handle_tabulation(cursor, math_handler);
+        REQUIRE(tab1 == true);
+
+        auto blocks = doc.get_blocks();
+        auto &mb1 = std::get<vx::model::math_display_block>(blocks[0]);
+        CHECK(mb1.content == "\\alpha");
+        CHECK(cursor.offset_chars == 6); // '\', 'a', 'l', 'p', 'h', 'a'
+
+        bool tab2 = doc.handle_tabulation(cursor, math_handler);
+        REQUIRE(tab2 == true);
+
+        blocks = doc.get_blocks();
+        auto &mb2 = std::get<vx::model::math_display_block>(blocks[0]);
+        CHECK(mb2.content == "\\forall");
+        CHECK(cursor.offset_chars == 7); // '\', 'f', 'o', 'r', 'a', 'l', 'l'
     }
 }

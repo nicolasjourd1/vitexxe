@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ast.hpp"
+#include "math_input.hpp"
 #include <span>
 
 namespace vx::model
@@ -27,6 +28,9 @@ class document
 
     void append_block(block_node block);
     void insert_text(cursor_pos &cursor, std::string_view text);
+
+    /// @return true if the symbol is replaced
+    bool handle_tabulation(cursor_pos &cursor, const math_input_handler &handler);
 
     std::span<const block_node> get_blocks() const noexcept
     {
