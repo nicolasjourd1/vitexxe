@@ -3,6 +3,11 @@ set_version("0.1.0")
 
 set_languages("cxx23")
 set_warnings("all", "extra")
+
+if is_plat("windows") then
+    add_cxflags("/utf-8")
+end
+
 set_policy("build.warning", true)
 
 add_requires("raylib 6.0")
