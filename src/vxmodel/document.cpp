@@ -153,4 +153,128 @@ bool document::handle_tabulation(cursor_pos &cursor, const math_input_handler &h
     return replaced;
 }
 
+void document::split_block_at_cursor(cursor_pos &cursor)
+{
+    if (m_blocks.empty() || cursor.block_idx > +m_blocks.size())
+        return;
+
+    block_node &current_block = get_mutable_block(cursor.block_idx);
+
+    std::visit(
+        [&](auto &block) {
+            using T = std::decay_t<decltype(block)>;
+
+            if constexpr (std::is_same_v<T, paragraph_block> || std::is_same_v<T, heading_block>)
+            {
+                paragraph_block new_paragraph;
+
+                if (!block.children.empty() && cursor.inline_idx < block.children.size())
+                {
+                    auto &current_inline = block.children[cursor.inline_idx];
+
+                    if (auto *txt = std::get_if<text_inline>(&current_inline))
+                    {
+                        // NOTE: later use ut8 iterator to find the exact byte offset
+                        usize byte_offset = cursor.offset_chars;
+                        if (byte_offset <= txt->content.length())
+                        {
+                            std::string right_part = txt->content.substr(byte_offset);
+                            txt->content.erase(byte_offset);
+
+                            new_paragraph.children.push_back(
+                                text_inline{.content = std::move(right_part), .style = txt->style});
+                        }
+                    }
+                }
+
+                m_blocks.insert(m_blocks.begin() + cursor.block_idx + 1, new_paragraph);
+
+                cursor.block_idx += 1;
+                cursor.inline_idx = 0;
+                cursor.offset_chars = 0;
+            }
+            else if constexpr (std::is_same_v<T, math_display_block>)
+            {
+                // NOTE: splitting after a math block creates an empty paragraph
+                paragraph_block new_paragraph;
+                new_paragraph.children.push_back(
+                    text_inline{.content = "", .style = text_style::normal});
+                m_blocks.insert(m_blocks.begin() + cursor.block_idx + 1, new_paragraph);
+
+                cursor.block_idx += 1;
+                cursor.inline_idx = 0;
+                cursor.offset_chars = 0;
+            }
+        },
+        current_block);
+}
+
+bool document::delete_backward(cursor_pos &cursor)
+{
+    if (m_blocks.empty())
+        return false;
+
+    // 1 : delete char
+    if (cursor.offset_chars > 0)
+    {
+        block_node &current_block = get_mutable_block(cursor.block_idx);
+
+        std::visit(
+            [&](auto &block) {
+                using T = std::decay_t<decltype(block)>;
+                if constexpr (std::is_same_v<T, paragraph_block>)
+                {
+                    if (auto *txt = std::get_if<text_inline>(&block.children[cursor.inline_idx]))
+                    {
+                        txt->content.erase(cursor.offset_chars - 1, 1);
+                        cursor.offset_chars -= 1;
+                    }
+                }
+            },
+            current_block);
+        return true;
+    }
+
+    // 2 : merge with previous block
+    if (cursor.block_idx > 0 && cursor.offset_chars == 0)
+    {
+        block_node &prev_block_node = get_mutable_block(cursor.block_idx - 1);
+        block_node &current_block_node = get_mutable_block(cursor.block_idx);
+
+        if (std::holds_alternative<paragraph_block>(prev_block_node) &&
+            std::holds_alternative<paragraph_block>(current_block_node))
+        {
+            auto &prev_p = std::get<paragraph_block>(prev_block_node);
+            auto &curr_p = std::get<paragraph_block>(current_block_node);
+
+            // position cursor
+            usize prev_last_inline_idx = prev_p.children.empty() ? 0 : prev_p.children.size() - 1;
+            usize cursor_new_offset = 0;
+
+            if (!prev_p.children.empty())
+            {
+                if (auto *txt = std::get_if<text_inline>(&prev_p.children.back()))
+                {
+                    cursor_new_offset = txt->content.length();
+                }
+            }
+
+            // transfer children and delete curr bloc
+            for (auto &child : curr_p.children)
+            {
+                prev_p.children.push_back(std::move(child));
+            }
+
+            m_blocks.erase(m_blocks.begin() + cursor.block_idx);
+
+            cursor.block_idx -= 1;
+            cursor.inline_idx = prev_last_inline_idx;
+            cursor.offset_chars = cursor_new_offset;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 } // namespace vx::model

@@ -32,6 +32,9 @@ class document
     /// @return true if the symbol is replaced
     bool handle_tabulation(cursor_pos &cursor, const math_input_handler &handler);
 
+    void split_block_at_cursor(cursor_pos &cursor);
+    bool delete_backward(cursor_pos &cursor);
+
     std::span<const block_node> get_blocks() const noexcept
     {
         return m_blocks;

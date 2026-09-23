@@ -69,3 +69,54 @@ TEST_CASE("Document math tabulation", "[model][document]")
         CHECK(cursor.offset_chars == 7); // '\', 'f', 'o', 'r', 'a', 'l', 'l'
     }
 }
+
+TEST_CASE("Document split and merge", "[model][document]")
+{
+    SECTION("Splitting a block creates a new paragraph")
+    {
+        vx::model::document doc;
+        vx::model::cursor_pos cursor{.block_idx = 0, .inline_idx = 0, .offset_chars = 0};
+
+        doc.insert_text(cursor, "Hello World");
+        cursor.offset_chars = 6;
+        doc.split_block_at_cursor(cursor);
+
+        auto blocks = doc.get_blocks();
+        REQUIRE(blocks.size() == 2);
+
+        auto &p1 = std::get<vx::model::paragraph_block>(blocks[0]);
+        auto &p2 = std::get<vx::model::paragraph_block>(blocks[1]);
+
+        auto &txt1 = std::get<vx::model::text_inline>(p1.children[0]);
+        auto &txt2 = std::get<vx::model::text_inline>(p2.children[0]);
+
+        CHECK(txt1.content == "Hello ");
+        CHECK(txt2.content == "World");
+
+        CHECK(cursor.block_idx == 1);
+        CHECK(cursor.offset_chars == 0);
+    }
+
+    SECTION("Merging a block backspaces into previous")
+    {
+        vx::model::document doc;
+        vx::model::cursor_pos cursor{.block_idx = 0, .inline_idx = 0, .offset_chars = 0};
+
+        doc.insert_text(cursor, "Hello ");
+        doc.split_block_at_cursor(cursor);
+        doc.insert_text(cursor, "World");
+
+        REQUIRE(doc.get_blocks().size() == 2);
+
+        cursor.offset_chars = 0;
+
+        bool merged = doc.delete_backward(cursor);
+        REQUIRE(merged == true);
+
+        auto blocks = doc.get_blocks();
+        REQUIRE(blocks.size() == 1);
+
+        CHECK(cursor.block_idx == 0);
+        CHECK(cursor.offset_chars == 6);
+    }
+}
