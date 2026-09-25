@@ -16,6 +16,7 @@ struct box_metrics
     f32 height{0.0f};
     f32 depth{0.0f};
     vec2f position{.x = 0.0f, .y = 0.0f}; // relative to parent
+    f32 scale{1.0f};
 };
 
 struct box_node;

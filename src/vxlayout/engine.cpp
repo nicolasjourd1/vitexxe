@@ -12,15 +12,15 @@ layout_engine::layout_engine(const font_measurer &measurer, layout_config config
 {
 }
 
-box_node layout_engine::build_math(const model::math_node &math_ast)
+box_node layout_engine::build_math(const model::math_node &math_ast, float current_scale)
 {
     return std::visit(
-        [this](const auto &node_data) -> box_node {
+        [&](const auto &node_data) -> box_node {
             using T = std::decay_t<decltype(node_data)>;
 
             if constexpr (std::is_same_v<T, model::math_symbol>)
             {
-                text_measure tm = m_measurer.measure(node_data.value);
+                text_measure tm = m_measurer.measure(node_data.value, current_scale);
                 box_node box;
                 box.data = glyph_box{node_data.value};
                 box.metrics = {tm.width, tm.height, tm.depth, {.x = 0.0f, .y = 0.0f}};
@@ -35,7 +35,7 @@ box_node layout_engine::build_math(const model::math_node &math_ast)
 
                 for (const auto &elem : node_data.elements)
                 {
-                    box_node child = build_math(elem);
+                    box_node child = build_math(elem, current_scale);
                     child.metrics.position.x = current_x;
                     child.metrics.position.y = 0.0f;
 
@@ -53,8 +53,8 @@ box_node layout_engine::build_math(const model::math_node &math_ast)
             }
             else if constexpr (std::is_same_v<T, model::math_fraction>)
             {
-                box_node num = build_math(*node_data.numerator);
-                box_node den = build_math(*node_data.denominator);
+                box_node num = build_math(*node_data.numerator, current_scale);
+                box_node den = build_math(*node_data.denominator, current_scale);
 
                 // horizontal centering
                 f32 max_width = std::max(num.metrics.width, den.metrics.width);
@@ -62,11 +62,11 @@ box_node layout_engine::build_math(const model::math_node &math_ast)
                 f32 den_x = (max_width - den.metrics.width) / 2.0f;
 
                 // padding
-                f32 gap = 2.0f;
-                num.metrics.position = {.x = num_x,
-                                        .y = m_config.math_axis_height + gap + num.metrics.depth};
-                den.metrics.position = {.x = den_x,
-                                        .y = m_config.math_axis_height - gap - den.metrics.height};
+                f32 axis_y = -m_config.math_axis_height;
+                f32 gap = 4.0f;
+
+                num.metrics.position = {.x = num_x, .y = axis_y - gap - num.metrics.depth};
+                den.metrics.position = {.x = den_x, .y = axis_y + gap + den.metrics.height};
 
                 fraction_box frac;
                 frac.numerator = make_box(std::move(num));
@@ -77,40 +77,42 @@ box_node layout_engine::build_math(const model::math_node &math_ast)
                 result.data = std::move(frac);
 
                 result.metrics = {max_width,
-                                  num.metrics.position.y + num.metrics.height,
-                                  std::abs(den.metrics.position.y) + den.metrics.depth,
+                                  std::abs(num.metrics.position.y) + num.metrics.height,
+                                  den.metrics.position.y + den.metrics.depth,
                                   {.x = 0.0f, .y = 0.0f}};
                 return result;
             }
             else if constexpr (std::is_same_v<T, model::math_script>)
             {
-                box_node base = build_math(*node_data.base);
+                box_node base = build_math(*node_data.base, current_scale);
                 f32 current_x = base.metrics.width;
                 f32 max_h = base.metrics.height;
                 f32 max_d = base.metrics.depth;
+                f32 script_width = 0.0f;
 
                 hbox script_box;
                 script_box.children.push_back(std::move(base));
 
                 if (node_data.superscript)
                 {
-                    box_node sup = build_math(*node_data.superscript);
-                    sup.metrics.position = {.x = current_x, .y = max_h * 0.7f};
-                    max_h = std::max(max_h, sup.metrics.position.y = sup.metrics.height);
+                    box_node sup = build_math(*node_data.superscript, current_scale * 0.7f);
+                    sup.metrics.position = {.x = current_x, .y = -max_h * 0.7f};
+                    max_h = std::max(max_h, sup.metrics.position.y + sup.metrics.height);
+                    script_width = std::max(script_width, sup.metrics.width);
                     script_box.children.push_back(std::move(sup));
                 }
                 if (node_data.subscript)
                 {
-                    box_node sub = build_math(*node_data.subscript);
-                    sub.metrics.position = {.x = current_x,
-                                            .y = -max_d * 0.7f - sub.metrics.height};
+                    box_node sub = build_math(*node_data.subscript, current_scale * 0.7f);
+                    sub.metrics.position = {.x = current_x, .y = max_d * 0.7f + sub.metrics.height};
                     max_d = std::max(max_d, std::abs(sub.metrics.position.y) + sub.metrics.depth);
+                    script_width = std::max(script_width, sub.metrics.width);
                     script_box.children.push_back(std::move(sub));
                 }
 
                 box_node result;
                 result.data = std::move(script_box);
-                result.metrics = {current_x, max_h, max_d, {.x = 0.0f, .y = 0.0f}};
+                result.metrics = {current_x + script_width, max_h, max_d, {.x = 0.0f, .y = 0.0f}};
                 return result;
             }
 

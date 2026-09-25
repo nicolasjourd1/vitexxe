@@ -31,18 +31,17 @@ target("vxlayout")
     add_deps("vxcore", "vxmodel")
     add_files("src/vxlayout/**.cpp")
 
--- TBD
-
-
--- target("vxrender")
---     set_kind("static")
---     add_files("src/vxrender/**.cpp")
+target("vxrender")
+    set_kind("static")
+    add_deps("vxlayout")
+    add_packages("raylib")
+    add_files("src/vxrender/**.cpp")
 
 -- Binaries
 
 target("vitexxe")
     set_kind("binary")
-    add_deps("vxcore", "vxmodel", "vxlayout")
+    add_deps("vxcore", "vxmodel", "vxlayout", "vxrender")
     add_packages("raylib")
     add_files("src/vitexxe/**.cpp")
 

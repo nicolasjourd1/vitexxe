@@ -8,7 +8,8 @@
 class mock_measurer : public vx::layout::font_measurer
 {
   public:
-    vx::layout::text_measure measure(std::string_view text) const override
+    vx::layout::text_measure measure(std::string_view text,
+                                     [[maybe_unused]] vx::f32 scale = 1.0f) const override
     {
         // width : 10px, height : 12px, depth = 2px
         vx::f32 w = static_cast<vx::f32>(text.length()) * 10.0f;
@@ -38,15 +39,15 @@ TEST_CASE("Layout engine calculates math dimensions", "[layout][engine]")
         REQUIRE(frac.numerator != nullptr);
         CHECK(frac.numerator->metrics.width == 10.0f);
         CHECK(frac.numerator->metrics.position.x == 0.0f);
-        // y positioning (axis = 5.0, gap 2.0, 'a' has depth 2.0 -> 9.0 total)
-        CHECK(frac.numerator->metrics.position.y == 9.0f);
+        // y positioning (axis = 5.0, gap 4.0, 'a' has depth 2.0 -> -11.0 total)
+        CHECK(frac.numerator->metrics.position.y == -11.0f);
 
         // 'b'
         REQUIRE(frac.denominator != nullptr);
         CHECK(frac.denominator->metrics.position.x == 0.0f);
         CHECK(frac.denominator->metrics.width == 10.0f);
-        // y positioning (axis = 5.0, gap = 2.0, 'b' has height 12.0 -> -9.0 total)
-        CHECK(frac.denominator->metrics.position.y == -9.0f);
+        // y positioning (axis = 5.0, gap = 4.0, 'b' has height 12.0 -> 11.0 total)
+        CHECK(frac.denominator->metrics.position.y == 11.0f);
     }
 
     SECTION("Row layout horizontal alignment")

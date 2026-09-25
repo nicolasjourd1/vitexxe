@@ -17,7 +17,7 @@ class layout_engine
     box_node build_document(const model::document &doc);
 
     /// @brief generates layout for a math ast
-    box_node build_math(const model::math_node &math_ast);
+    box_node build_math(const model::math_node &math_ast, f32 current_scale = 1.0f);
 
   private:
     const font_measurer &m_measurer;

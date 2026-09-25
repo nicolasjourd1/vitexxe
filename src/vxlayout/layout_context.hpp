@@ -18,7 +18,7 @@ class font_measurer
 {
   public:
     virtual ~font_measurer() = default;
-    virtual text_measure measure(std::string_view text) const = 0;
+    virtual text_measure measure(std::string_view text, f32 scale = 1.0f) const = 0;
 };
 
 /// @brief Global config for layout engine
