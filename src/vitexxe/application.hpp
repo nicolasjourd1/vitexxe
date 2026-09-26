@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "menu_bar.hpp"
+#include "vitexxe/i18n.hpp"
 
 namespace vx
 {
@@ -29,11 +30,14 @@ class application
     void run();
 
   private:
+    void load_font();
     void update();
     void draw() const;
 
     window_config m_config;
+    i18n::translator m_translator;
     ui::menu_bar m_menu_bar;
+    Font m_font{};
 };
 
 } // namespace vx
